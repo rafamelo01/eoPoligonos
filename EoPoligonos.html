@@ -871,12 +871,20 @@
                         page: parseInt(page),
                         element: null // Will be set in redrawRectangles
                     });
+
+                    // desabilita opcoes no select baseado nos nomes importados
+                    const cleanName = name.replace('_BARCODE', '');
+                    const optionToEnable = [...rectangleNameInput.options].find(opt => opt.value === cleanName);
+                    if (optionToEnable) optionToEnable.disabled = true;
                 });
+                rectangleNameInput.selectedIndex = 0;
                 
                 // Redraw rectangles for current page
                 redrawRectangles();
                 loadModal.style.display = 'none';
                 loadDataInput.value = '';
+
+
                 
                 alert(`Foram carregados ${rectangles.length} retângulos.`);
             } catch (e) {
