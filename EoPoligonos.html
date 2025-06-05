@@ -162,6 +162,22 @@
             min-width: 30px;
             text-align: center;
         }
+
+        
+        select, input[type="number"] {
+        width: 100%;
+        padding: 7px;
+        font-size: 15px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+        border: 1px solid #ccc;
+        }
+
+        label {
+            margin-top: 10px;
+            display: block;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -199,17 +215,40 @@
     <div id="rectangle-modal" class="modal">
         <div class="modal-content">
             <h3>Configurar Retângulo</h3>
+
+            <label for="rectangle-type">Tipo do campo:</label>
+            <select id="rectangle-type">
+                <option value="textual">Textual</option>
+                <option value="barcode">Código de Barras</option>
+            </select>
+
             <label for="rectangle-name">Nome:</label>
-            <input type="text" id="rectangle-name">
+            <select id="rectangle-name">
+                <option value="nome">nome</option>
+                <option value="endereço">endereço</option>
+                <option value="complemento">complemento</option>
+                <option value="bairro">bairro</option>
+                <option value="cidade">cidade</option>
+                <option value="estado">estado</option>
+                <option value="cep">cep</option>
+                <option value="CampoLivre1">CampoLivre1</option>
+                <option value="CampoLivre2">CampoLivre2</option>
+                <option value="CodBarraCliente">CodBarraCliente</option>
+                <option value="telefone">telefone</option>
+                <option value="email">email</option>
+                <option value="descricao">descricao</option>
+            </select>
+
             <label for="rectangle-page">Página:</label>
             <input type="number" id="rectangle-page" min="1" value="1">
+
             <div class="modal-buttons">
                 <button id="cancel-rectangle-btn">Cancelar</button>
                 <button id="save-rectangle-btn">Salvar</button>
             </div>
         </div>
     </div>
-    
+
     <div id="load-modal" class="modal">
         <div class="modal-content">
             <h3>Carregar Dados</h3>
@@ -260,6 +299,7 @@
         // Modal elements
         const rectangleModal = document.getElementById('rectangle-modal');
         const rectangleNameInput = document.getElementById('rectangle-name');
+        const typeSelect = document.getElementById('rectangle-type');
         const rectanglePageInput = document.getElementById('rectangle-page');
         const saveRectangleBtn = document.getElementById('save-rectangle-btn');
         const cancelRectangleBtn = document.getElementById('cancel-rectangle-btn');
@@ -369,6 +409,14 @@
             });
             rectangles = []; // Limpa a lista
             outputTextarea.value = ''; // Limpa a saída, se desejar
+
+            // 🔄 Reabilita todos os <option> do select de nomes
+            [...rectangleNameInput.options].forEach(option => {
+                option.disabled = false;
+            });
+
+            // Reseta o select para o valor padrão
+            rectangleNameInput.selectedIndex = 0;
         }
 
         
@@ -556,14 +604,18 @@
         }
 		
 		function saveCurrentRectangle(rect, viewerRect) {
-			const name = rectangleNameInput.value;
 			const pageRaw = rectanglePageInput.value;
 			const page = parseInt(pageRaw);
+            const type = typeSelect.value;
+            const nameBase = rectangleNameInput.value;
 
-			if (!name) {
+			if (!nameBase) {
 				alert('Por favor, insira um nome para o retângulo.');
 				return;
 			}
+
+            let name = (type === 'barcode') ? nameBase + '_BARCODE' : nameBase;
+
 
 			if (isNaN(page) || page < 1 || page > pdfDoc.numPages) {
 				alert('Número de página inválido.');
@@ -600,6 +652,14 @@
 			rectangleNameInput.value = '';
 			rectanglePageInput.value = '';
 			currentRectangle = null;
+
+            // 🔒 Desabilita a opção do nome-base (sem _BARCODE)
+            const nameOption = [...rectangleNameInput.options].find(opt => opt.value === nameBase);
+            if (nameOption) nameOption.disabled = true;
+
+            // Reseta o select
+            rectangleNameInput.selectedIndex = 0;
+
 		}
 
 
@@ -709,6 +769,12 @@
                 deleteBtn.textContent = 'Excluir';
                 deleteBtn.onclick = () => {
                     rectangles.splice(index, 1); // Remove da lista
+
+                    // ♻️ Reabilita a opção do select
+                    const cleanName = rectData.name.replace('_BARCODE', '');
+                    const optionToEnable = [...rectangleNameInput.options].find(opt => opt.value === cleanName);
+                    if (optionToEnable) optionToEnable.disabled = false;
+
                     redrawRectangles();         // Atualiza tela
                 };
 
