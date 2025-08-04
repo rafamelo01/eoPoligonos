@@ -478,7 +478,7 @@
                     pageNumSpan.textContent = currentPage;
 
                     // Calculate startY for all pages
-                    calculateStartYFirstPage(pdf).then(() => {
+                    findStartY(pdf).then(() => {
                         renderPage(currentPage);
                     });
                 }).catch(function (error) {
@@ -508,58 +508,64 @@
             rectangleNameInput.selectedIndex = 0;
         }
 
-        async function calculateStartYFirstPage(pdf) {
-            const page = await pdf.getPage(1);
+
+        async function findStartY(pdf, pageIndex = 0) {
+            const page = await pdf.getPage(pageIndex + 1);
             const viewport = page.getViewport({ scale: 1.0 });
             const textContent = await page.getTextContent();
 
             const width = viewport.width;
             const height = viewport.height;
+            let minYOffset = Number.MAX_VALUE;
+            function hasTextInRect(x, y, w, h) {
+                const tolerance = 0.3;
 
-            function hasTextInRect(top, bottom, left = 0, right = width) {
                 return textContent.items.some(item => {
-                    const x = item.transform[4];
-                    const y = item.transform[5];
-                    const h = item.height || 0;
-                    const w = item.width || 0;
+                    const [a, b, c, d, tx, ty] = item.transform;
 
-                    const itemTop = y + h;
-                    const itemBottom = y;
+                    const textWidth = item.width || Math.hypot(a, c);
+                    const textHeight = item.fontSize || Math.hypot(b, d);
 
-                    const verticalOverlap = !(itemBottom > bottom || itemTop < top);
-                    const horizontalOverlap = !(x + w < left || x > right);
+                    const textLeft = tx;
+                    const textBottom = ty;
+                    const textRight = tx + textWidth;
 
-                    const text = item.str?.trim();
-                    if (!text || text.length < 2 || h < 5) return false;
+                    // Retângulo da área de busca
+                    const rectLeft = x;
+                    const rectRight = x + w;
+                    const rectBottom = y;
+                    const rectTop = y + h;
 
-                    return verticalOverlap && horizontalOverlap;
+                    const horizontallyInside = !(textRight < rectLeft || textLeft > rectRight);
+                    const verticallyInside = textBottom >= rectBottom - tolerance && textBottom <= rectTop + tolerance;
+
+                    return horizontallyInside && verticallyInside;
                 });
             }
+
 
             let low = 0;
             let high = height;
             const stepSize = 10;
 
-            // Busca ternária
+            // Ternary search (matches iText implementation)
             while ((high - low) > stepSize) {
                 const mid1 = low + (high - low) / 3;
                 const mid2 = high - (high - low) / 3;
 
-                const rect1Top = height - mid1;
-                const rect1Bottom = height;
+                // Create rectangles matching iText's coordinate system
+                const rect1 = { x: 0, y: height - mid1, w: width, h: mid1 };
+                const rect2 = { x: 0, y: height - mid2, w: width, h: mid2 - mid1 };
+                const rect3 = { x: 0, y: height - high, w: width, h: high - mid2 };
 
-                const rect2Top = height - mid2;
-                const rect2Bottom = height - mid1;
-
-                const rect3Top = height - high;
-                const rect3Bottom = height - mid2;
-
-                if (hasTextInRect(rect1Top, rect1Bottom)) {
+                if (hasTextInRect(rect1.x, rect1.y, rect1.w, rect1.h)) {
                     high = mid1;
-                } else if (hasTextInRect(rect2Top, rect2Bottom)) {
+                    minYOffset = height - mid1;
+                } else if (hasTextInRect(rect2.x, rect2.y, rect2.w, rect2.h)) {
                     low = mid1;
                     high = mid2;
-                } else if (hasTextInRect(rect3Top, rect3Bottom)) {
+                    minYOffset = height - mid2;
+                } else if (hasTextInRect(rect3.x, rect3.y, rect3.w, rect3.h)) {
                     low = mid2;
                 } else {
                     low = mid1;
@@ -567,22 +573,25 @@
                 }
             }
 
-            // Busca binária para refinar
+            // Binary search refinement
             while ((high - low) > 1) {
                 const mid = (low + high) / 2;
+                const rect = { x: 0, y: height - mid, w: width, h: mid };
 
-                const midTop = height - mid;
-                const midBottom = height - low;
-
-                if (hasTextInRect(midTop, midBottom)) {
+                if (hasTextInRect(rect.x, rect.y, rect.w, rect.h)) {
                     high = mid;
+                    minYOffset = height - mid;
                 } else {
                     low = mid;
                 }
             }
+            minYOffset = Math.round(minYOffset * 100) / 100;
 
-            startYValues[1] = height - high;
+
+            startYValues[1] = minYOffset
+            console.log(startYValues[1]);
         }
+
 
         function renderPage(num) {
             pageRendering = true;
